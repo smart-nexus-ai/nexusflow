@@ -1,0 +1,411 @@
+\section{Firebase Realtime Database Path Structure}
+
+The Firebase RTDB uses a hierarchical JSON structure organized by root paths. This appendix documents the complete schema.
+
+\subsection{Root Paths}
+
+\begin{lstlisting}[language=json, caption=Firebase RTDB Root Structure, label=lst:firebase_root]
+{
+  "devices": { ... },
+  "device_states": { ... },
+  "commands": { ... },
+  "schedules": { ... },
+  "scenes": { ... },
+  "automation_rules": { ... },
+  "presence": { ... },
+  "billing_cycles": { ... },
+  "logs": { ... }
+}
+\end{lstlisting}
+
+\subsection{/devices Path}
+
+User device metadata and configuration.
+
+\begin{lstlisting}[language=json, caption=Devices Structure, label=lst:devices_path]
+{
+  "devices": {
+    "{userId}": {
+      "{deviceId}": {
+        "name": "Living Room Hub",
+        "location": "Living Room",
+        "hardwareId": "ESP32-001",
+        "firmwareVersion": "1.0.2",
+        "channelCount": 6,
+        "wifiSsid": "HomeNetwork",
+        "wifiStatus": "connected",
+        "pairedDate": 1720700400000,
+        "lastSeen": 1720788800000,
+        "icon": "router",
+        "notes": "Main automation hub"
+      }
+    }
+  }
+}
+\end{lstlisting}
+
+\subsection{/device\_states Path}
+
+Real-time relay and sensor states.
+
+\begin{lstlisting}[language=json, caption=Device States Structure, label=lst:device_states]
+{
+  "device_states": {
+    "{deviceId}": {
+      "relay_1": {
+        "state": "ON",
+        "lastToggled": 1720788750000,
+        "runtime_hours": 156.25
+      },
+      "relay_2": {
+        "state": "OFF",
+        "lastToggled": 1720788600000,
+        "runtime_hours": 89.50
+      },
+      "temperature": {
+        "value": 26.5,
+        "lastRead": 1720788800000,
+        "unit": "celsius"
+      },
+      "humidity": {
+        "value": 65.3,
+        "lastRead": 1720788800000,
+        "unit": "percent"
+      },
+      "deviceStatus": "online",
+      "lastSync": 1720788800000
+    }
+  }
+}
+\end{lstlisting}
+
+\subsection{/commands Path}
+
+Command queue for device control (transient, auto-deleted after execution).
+
+\begin{lstlisting}[language=json, caption=Commands Structure, label=lst:commands_path]
+{
+  "commands": {
+    "{deviceId}": {
+      "1720788850000": {
+        "relay": 1,
+        "action": "ON",
+        "source": "user",
+        "userId": "{userId}",
+        "timestamp": 1720788850000,
+        "executed": false
+      },
+      "1720788860000": {
+        "relay": 3,
+        "action": "OFF",
+        "source": "schedule",
+        "scheduleId": "sched_morning_routine",
+        "timestamp": 1720788860000,
+        "executed": false
+      }
+    }
+  }
+}
+\end{lstlisting}
+
+\subsection{/schedules Path}
+
+User-defined schedules for device automation.
+
+\begin{lstlisting}[language=json, caption=Schedules Structure, label=lst:schedules_path]
+{
+  "schedules": {
+    "{userId}": {
+      "{scheduleId}": {
+        "name": "Morning Lights",
+        "deviceId": "esp32_001",
+        "relay": 2,
+        "action": "ON",
+        "triggerType": "specific_time",
+        "triggerTime": "07:00",
+        "repeat": "daily",
+        "repeatDays": ["MON", "TUE", "WED", "THU", "FRI"],
+        "enabled": true,
+        "notifyOnExecution": true,
+        "createdAt": 1720700400000,
+        "endDate": null
+      }
+    }
+  }
+}
+\end{lstlisting}
+
+\subsection{/scenes Path}
+
+Multi-device scene definitions.
+
+\begin{lstlisting}[language=json, caption=Scenes Structure, label=lst:scenes_path]
+{
+  "scenes": {
+    "{userId}": {
+      "{sceneId}": {
+        "name": "Movie Night",
+        "description": "Dim lights, close curtains, AC ON",
+        "icon": "filmstrip",
+        "actions": [
+          {
+            "deviceId": "esp32_001",
+            "relay": 1,
+            "action": "OFF"
+          },
+          {
+            "deviceId": "esp32_001",
+            "relay": 5,
+            "action": "ON"
+          },
+          {
+            "deviceId": "esp32_002",
+            "relay": 2,
+            "action": "ON"
+          }
+        ],
+        "createdAt": 1720700400000
+      }
+    }
+  }
+}
+\end{lstlisting}
+
+\subsection{/automation\_rules Path}
+
+Device-level automation rules.
+
+\begin{lstlisting}[language=json, caption=Automation Rules Structure, label=lst:automation_rules]
+{
+  "automation_rules": {
+    "{deviceId}": [
+      {
+        "id": "rule_001",
+        "name": "AC Temperature Control",
+        "relay": 1,
+        "action": "ON",
+        "condition": {
+          "type": "temperature_threshold",
+          "operator": "greater_than",
+          "value": 28.0,
+          "hysteresis": 1.0
+        },
+        "enabled": true,
+        "createdAt": 1720700400000
+      },
+      {
+        "id": "rule_002",
+        "name": "Dehumidifier",
+        "relay": 3,
+        "action": "ON",
+        "condition": {
+          "type": "dual_sensor",
+          "logic": "AND",
+          "conditions": [
+            {
+              "type": "temperature_threshold",
+              "operator": "greater_than",
+              "value": 25.0,
+              "hysteresis": 1.0
+            },
+            {
+              "type": "humidity_threshold",
+              "operator": "greater_than",
+              "value": 70.0,
+              "hysteresis": 3.0
+            }
+          ]
+        },
+        "enabled": true,
+        "createdAt": 1720700400000
+      }
+    ]
+  }
+}
+\end{lstlisting}
+
+\subsection{/presence Path}
+
+User presence tracking for adaptive sync.
+
+\begin{lstlisting}[language=json, caption=Presence Structure, label=lst:presence_path]
+{
+  "presence": {
+    "{deviceId}": {
+      "{userId}": {
+        "lastActive": 1720788800000,
+        "appVersion": "1.0.2"
+      }
+    }
+  }
+}
+\end{lstlisting}
+
+\subsection{/billing\_cycles Path}
+
+Energy consumption tracking per billing cycle.
+
+\begin{lstlisting}[language=json, caption=Billing Cycles Structure, label=lst:billing_cycles]
+{
+  "billing_cycles": {
+    "{deviceId}": {
+      "{cycleId}": {
+        "startDate": "2026-07-01",
+        "endDate": "2026-07-31",
+        "relayUsage": {
+          "relay_1": {
+            "hours": 156.5,
+            "estimatedkWh": 3.13,
+            "estimatedCost": 25.04
+          },
+          "relay_2": {
+            "hours": 89.2,
+            "estimatedkWh": 0.89,
+            "estimatedCost": 7.12
+          }
+        },
+        "totalEstimatedCost": 32.16
+      }
+    }
+  }
+}
+\end{lstlisting}
+
+\subsection{/logs Path}
+
+Device event logging for debugging and audit trails.
+
+\begin{lstlisting}[language=json, caption=Logs Structure, label=lst:logs_path]
+{
+  "logs": {
+    "{deviceId}": {
+      "1720788800000": {
+        "level": "INFO",
+        "message": "Relay 1 toggled ON",
+        "source": "user_app",
+        "userId": "{userId}",
+        "metadata": {
+          "relay": 1,
+          "action": "ON",
+          "latency": 1240
+        }
+      },
+      "1720788850000": {
+        "level": "ERROR",
+        "message": "WiFi reconnection failed",
+        "source": "firmware",
+        "metadata": {
+          "ssid": "HomeNetwork",
+          "attempts": 3
+        }
+      }
+    }
+  }
+}
+\end{lstlisting}
+
+\subsection{Firebase Security Rules}
+
+\begin{lstlisting}[language=json, caption=Firebase Security Rules Example, label=lst:firebase_rules]
+{
+  "rules": {
+    "devices": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid"
+      }
+    },
+    "device_states": {
+      "$deviceId": {
+        ".read": "root.child('devices').child(auth.uid)
+                    .child($deviceId).exists()",
+        ".write": "root.child('devices').child(auth.uid)
+                    .child($deviceId).exists()"
+      }
+    },
+    "commands": {
+      "$deviceId": {
+        ".read": "root.child('devices').child(auth.uid)
+                    .child($deviceId).exists()",
+        ".write": "root.child('devices').child(auth.uid)
+                    .child($deviceId).exists()"
+      }
+    },
+    "presence": {
+      "$deviceId": {
+        "$uid": {
+          ".read": "auth.uid === $uid",
+          ".write": "auth.uid === $uid"
+        }
+      }
+    }
+  }
+}
+\end{lstlisting}
+
+\section{Data Synchronization Flow}
+
+\begin{lstlisting}[language=Kotlin, caption=Firebase Sync Example, label=lst:firebase_sync]
+// Listen to device state changes
+FirebaseDatabase.getInstance()
+    .getReference("device_states/$deviceId/relay_1")
+    .addValueEventListener(object : ValueEventListener {
+        override fun onDataChange(snapshot: DataSnapshot) {
+            val state = snapshot.child("state").value as? String
+            val lastToggled = snapshot.child("lastToggled")
+                .value as? Long
+            
+            // Update Room database
+            roomDatabase.relayDao()
+                .updateRelay(deviceId, 1, state, lastToggled)
+        }
+        
+        override fun onCancelled(error: DatabaseError) {
+            Log.e("Firebase", "Sync cancelled: ${error.message}")
+        }
+    })
+
+// Write user command
+fun toggleRelay(deviceId: String, relay: Int) {
+    val command = mapOf(
+        "relay" to relay,
+        "action" to "ON",
+        "source" to "user",
+        "timestamp" to System.currentTimeMillis(),
+        "executed" to false
+    )
+    
+    FirebaseDatabase.getInstance()
+        .getReference("commands/$deviceId/${System.currentTimeMillis()}")
+        .setValue(command)
+        .addOnSuccessListener {
+            Log.d("Firebase", "Command sent successfully")
+        }
+        .addOnFailureListener { error ->
+            Log.e("Firebase", "Command failed: ${error.message}")
+            // Add to Room queue for retry
+            roomDatabase.commandQueueDao().insert(
+                QueuedCommand(deviceId, relay, "ON", System.currentTimeMillis())
+            )
+        }
+}
+\end{lstlisting}
+
+\section{Database Size Estimation}
+
+For a typical household with 4 devices, 20 schedules, 5 scenes, and 3 months of logs:
+
+\begin{itemize}
+    \item Devices metadata: ~4 KB
+    \item Device states (real-time): ~5 KB
+    \item Commands (transient, cleaned up): ~1 MB historical
+    \item Schedules: ~15 KB
+    \item Scenes: ~8 KB
+    \item Automation rules: ~12 KB
+    \item Presence data: ~2 KB
+    \item Billing cycles (3 months): ~10 KB
+    \item Logs (3 months): ~5 MB
+    \item \textbf{Total Estimated:} ~6.1 MB (well within Firebase free tier of 1 GB)
+\end{itemize}
+
+This schema ensures efficient storage, fast queries, and appropriate data isolation for security.

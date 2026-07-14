@@ -1,0 +1,49 @@
+# Gradle files
+.gradle/
+/build/
+/captures/
+*.iml
+.externalNativeBuild/
+.cxx/
+
+# Local configuration
+local.properties
+secrets.properties
+
+# Signing files
+*.jks
+*.keystore
+*.pepk
+*.pk8
+*.pem
+
+# Firebase / Google Services config
+google-services.json
+**/google-services.json
+
+# Environment variables
+.env
+.env.*
+
+# Android Studio / IntelliJ IDEA
+.idea/
+
+# Local Dev Directory
+.dev/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.bbl
+*.blg
+*.synctex.gz
+*.fls
+*.fdb_latexmk

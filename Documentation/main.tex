@@ -1,0 +1,305 @@
+\documentclass[12pt,a4paper,oneside]{report}
+
+% ============================================================================
+% PACKAGES
+% ============================================================================
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{cite}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{subcaption}
+\usepackage{appendix}
+\usepackage{tocloft}
+\usepackage{setspace}
+\usepackage{charter}
+\usepackage{caption}
+
+% ============================================================================
+% PAGE SETUP
+% ============================================================================
+\geometry{
+    left=1in,
+    right=1in,
+    top=1in,
+    bottom=1in
+}
+
+\setstretch{1.2}
+
+% ============================================================================
+% HEADER AND FOOTER
+% ============================================================================
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\thepage}
+\lhead{NexusFlow: Smart Home Automation System}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ============================================================================
+% UNICODE CHARACTERS SETUP FOR PDFLATEX
+% ============================================================================
+\DeclareUnicodeCharacter{2713}{\checkmark}
+\DeclareUnicodeCharacter{2717}{$\times$}
+\DeclareUnicodeCharacter{2082}{$_2$}
+\DeclareUnicodeCharacter{03A9}{$\Omega$}
+\DeclareUnicodeCharacter{00B0}{$^\circ$}
+
+% ============================================================================
+% CODE LISTING SETUP
+% ============================================================================
+\lstdefinelanguage{json}{
+    string=[s]{"}{"},
+    stringstyle=\color{blue},
+    comment=[l]{//},
+    morecomment=[s]{/*}{*/},
+    commentstyle=\color{gray}
+}
+\lstdefinelanguage{Kotlin}{
+  comment=[l]{//},
+  comment=[s]{/*}{*/},
+  string=[b]",
+  string=[b]',
+  keepspaces=true,
+  keywords={package, import, public, private, protected, internal, class, interface, typealias, fun, val, var, init, constructor, this, super, object, companion, data, sealed, enum, open, final, abstract, override, true, false, null, if, else, when, for, while, do, return, break, continue, throw, try, catch, finally, as, is, in, out, by, get, set, field, property, receiver, dynamic, lateinit, vararg, noinline, crossinline, inline, external, reified, tailrec, operator, infix, suspend, expect, actual},
+  morekeywords={[2]String, Int, Long, Float, Double, Boolean, Char, Byte, Short, Array, List, Set, Map, MutableList, MutableSet, MutableMap},
+  keywordstyle=\color{blue},
+  keywordstyle={[2]\color{teal}},
+  stringstyle=\color{red},
+  commentstyle=\color{gray}
+}
+\lstset{
+    language=Kotlin,
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    showstringspaces=false,
+    tabsize=2,
+    captionpos=b,
+    numbers=left,
+    numbersep=5pt,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    stringstyle=\color{red},
+    escapeinside={\%*}{*)}
+}
+
+% ============================================================================
+% DOCUMENT BEGIN
+% ============================================================================
+\begin{document}
+
+% ============================================================================
+% TITLE PAGE (CUSTOM)
+% ============================================================================
+\begin{titlepage}
+\begin{center}
+    \vspace*{0.5cm}
+    
+    {\fontsize{20}{24}\selectfont \textbf{NEXUSFLOW: SMART HOME AUTOMATION SYSTEM}} \\[0.6cm]
+    {\fontsize{14}{18}\selectfont \textit{A Project Report Submitted in Partial Fulfillment of the Requirements for the Degree of}} \\[0.4cm]
+    {\fontsize{16}{20}\selectfont \textbf{Bachelor of Technology}} \\[0.2cm]
+    {\fontsize{12}{15}\selectfont in} \\[0.2cm]
+    {\fontsize{15}{18}\selectfont \textbf{Electronics and Communication Engineering}} \\[0.8cm]
+    
+    \includegraphics[width=3.5cm]{images/CGEC-Logo.jpg} \\[0.8cm]
+    
+    \begin{minipage}[t]{0.45\textwidth}
+        \centering
+        \textbf{Submitted By:} \\[0.2cm]
+        {\fontsize{11}{14}\selectfont
+        Firdous Rahaman (34900322033) \\
+        Rishika Sarkar (34900322008) \\
+        Rajdeep Roy (34900322029) \\
+        Debarpita Sarkar (34900322035) \\
+        Tonima Bagchi (34900322037) \\
+        Priyanka Halder (34900323061)
+        }
+    \end{minipage}
+    \hfill
+    \begin{minipage}[t]{0.48\textwidth}
+        \centering
+        \textbf{Under the Supervision of:} \\[0.2cm]
+        {\fontsize{11}{14}\selectfont
+        \textbf{Prof. Rajib Das} \\ Project Supervisor \\[0.4cm]
+        \textbf{Mr. Avisek Nandi} \\ Technical Facilitator \\[0.15cm]
+        \textbf{Mrs. Susmita Banik Barik} \\ Technical Facilitator
+        }
+    \end{minipage} \\[1cm]
+    
+    \vfill
+    
+    {\fontsize{12}{15}\selectfont Department of Electronics and Communication Engineering} \\
+    {\fontsize{14}{18}\selectfont \textbf{Cooch Behar Government Engineering College}} \\
+    {\fontsize{11}{14}\selectfont Cooch Behar - 736170, West Bengal, India} \\
+    {\fontsize{12}{15}\selectfont Maulana Abul Kalam Azad University of Technology (MAKAUT)} \\[0.4cm]
+    {\fontsize{12}{15}\selectfont \today}
+\end{center}
+\end{titlepage}
+
+% ============================================================================
+% CERTIFICATE OF APPROVAL
+% ============================================================================
+\newpage
+\begin{center}
+    {\fontsize{14}{18}\selectfont \textbf{COOCH BEHAR GOVERNMENT ENGINEERING COLLEGE}} \\
+    {\fontsize{11}{14}\selectfont \textbf{Department of Electronics and Communication Engineering}} \\
+    {\fontsize{9}{12}\selectfont Affiliated to Maulana Abul Kalam Azad University of Technology (MAKAUT), West Bengal} \\
+    {\fontsize{9}{12}\selectfont Harinchawra, Ghughumari, Cooch Behar-736170, West Bengal, India} \\[1cm]
+    
+    {\fontsize{13}{16}\selectfont \textbf{CERTIFICATE OF APPROVAL}} \\[1cm]
+\end{center}
+
+This is to certify that the final year project report entitled \textbf{``NEXUSFLOW: SMART HOME AUTOMATION SYSTEM''}, submitted by \textbf{Mr. Firdous Rahaman} (Roll No.: 34900322033, Reg. No.: 223490110159), \textbf{Ms. Rishika Sarkar} (Roll No.: 34900322008, Reg. No.: 223490110171), \textbf{Mr. Rajdeep Roy} (Roll No.: 34900322029, Reg. No.: 223490110169), \textbf{Ms. Debarpita Sarkar} (Roll No.: 34900322035, Reg. No.: 223490110158), \textbf{Ms. Tonima Bagchi} (Roll No.: 34900322037, Reg. No.: 223490110190), and \textbf{Ms. Priyanka Halder} (Roll No.: 34900323061, Reg. No.: 223490120307), to the Department of Electronics and Communication Engineering, Cooch Behar Government Engineering College, Harinchawra, Ghughumari, Cooch Behar-736170, West Bengal, India, in partial fulfillment of the requirements for the award of the degree of \textbf{Bachelor of Technology in Electronics and Communication Engineering}, is a bonafide record of the work carried out by them under the guidance and supervision of \textbf{Prof. Rajib Das}, Project Supervisor, with technical facilitation from \textbf{Mr. Avisek Nandi} and \textbf{Mrs. Susmita Banik Barik}, during the academic session \textbf{2025–2026}.
+
+The work embodied in this report has not been submitted elsewhere for the award of any degree or diploma.
+
+\vspace{3cm}
+
+\noindent
+\begin{minipage}[t]{0.45\textwidth}
+    \centering
+    \textbf{SIGNATURE OF HEAD OF THE DEPARTMENT} \\[1.2cm]
+    \rule{6.2cm}{0.4pt} \\
+    \textbf{Dr. Sourav Chakraborthy} \\
+    Head of the Department \\
+    Department of Electronics and \\
+    Communication Engineering \\
+    Cooch Behar Government \\
+    Engineering College \\
+    Harinchawra, Ghughumari \\
+    Cooch Behar-736170, West Bengal.
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+    \centering
+    \textbf{SIGNATURE OF THE PROJECT SUPERVISOR} \\[1.2cm]
+    \rule{6.2cm}{0.4pt} \\
+    \textbf{Prof. Rajib Das} \\
+    Project Supervisor \\
+    Department of Electronics and \\
+    Communication Engineering \\
+    Cooch Behar Government \\
+    Engineering College \\
+    Harinchawra, Ghughumari \\
+    Cooch Behar-736170, West Bengal.
+\end{minipage}
+
+% ============================================================================
+% ABSTRACT
+% ============================================================================
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+NexusFlow is a comprehensive smart home automation system designed to provide intelligent control over residential infrastructure. This report documents the design, implementation, and testing of an end-to-end IoT solution comprising an Android application, ESP32-based firmware, and cloud integration via Firebase.
+
+The system enables users to remotely control multiple relay-based devices, automate routines based on environmental sensors, schedule operations, and create scene-based automations. Key features include offline-first caching, BLE-based device provisioning, presence-aware synchronization, and energy consumption tracking.
+
+This document details the architecture, hardware design, software implementation, testing methodology, and results obtained during development.
+
+\vspace{1cm}
+
+\textbf{Keywords:} Smart Home, IoT, ESP32, Android, Firebase, Home Automation, BLE Provisioning
+
+% ============================================================================
+% DECLARATION
+% ============================================================================
+\chapter*{Declaration}
+\addcontentsline{toc}{chapter}{Declaration}
+
+We hereby declare that this project report titled \textit{``NexusFlow: Smart Home Automation System''} submitted to Cooch Behar Government Engineering College, MAKAUT, is an authentic record of our own work carried out under the supervision of Prof. Rajib Das.
+
+The information presented in this report has not been submitted elsewhere for any degree or certification. All external sources and references have been duly acknowledged.
+
+\vspace{2cm}
+
+Date: \today
+
+\vspace{0.5cm}
+
+Signatures of Team Members:
+
+\vspace{0.5cm}
+
+\hspace{1cm} ................................ \hspace{2cm} ................................
+
+\hspace{1cm} ................................ \hspace{2cm} ................................
+
+\hspace{1cm} ................................ \hspace{2cm} ................................
+
+% ============================================================================
+% ACKNOWLEDGMENTS
+% ============================================================================
+\chapter*{Acknowledgments}
+\addcontentsline{toc}{chapter}{Acknowledgments}
+
+We are deeply indebted and express our sincere gratitude to our project supervisor, Prof. Rajib Das, for his invaluable guidance, constant motivation, and support throughout the development of this project. He played a key role in helping us with the selection of different hardware components, and even provided several critical components required for the circuit assembly. His guidance in selecting the best development workflow, constant encouragement, and insightful feedback motivated us to overcome various challenges and achieve our goals.
+
+We would also like to thank Mr. Avisek Nandi and Mrs. Susmita Banik Barik for their technical facilitation and valuable feedback during the project.
+
+We also acknowledge the open-source communities behind Kotlin, Android Jetpack, ESP-IDF, and Firebase for providing excellent tools and documentation.
+
+Finally, we thank our families and friends for their encouragement and support during this endeavor.
+
+\newpage
+
+% ============================================================================
+% TABLE OF CONTENTS
+% ============================================================================
+\tableofcontents
+\pagebreak
+
+% ============================================================================
+% LIST OF FIGURES
+% ============================================================================
+\listoffigures
+\pagebreak
+
+% ============================================================================
+% LIST OF TABLES
+% ============================================================================
+\listoftables
+\pagebreak
+
+% ============================================================================
+% CHAPTERS
+% ============================================================================
+
+\input{chapters/chapter1_introduction.tex}
+\input{chapters/chapter2_literature_review.tex}
+\input{chapters/chapter3_system_design.tex}
+\input{chapters/chapter4_hardware_design.tex}
+\input{chapters/chapter5_software_design.tex}
+\input{chapters/chapter6_testing.tex}
+\input{chapters/chapter7_results.tex}
+\input{chapters/chapter8_future_scope.tex}
+\input{chapters/chapter9_conclusion.tex}
+
+% ============================================================================
+% REFERENCES
+% ============================================================================
+\newpage
+\bibliographystyle{IEEEtran}
+\nocite{*}
+\bibliography{references}
+
+% ============================================================================
+% APPENDICES
+% ============================================================================
+\appendix
+
+\input{appendix/appendix_d_screenshots.tex}
+
+% ============================================================================
+% END DOCUMENT
+% ============================================================================
+\end{document}

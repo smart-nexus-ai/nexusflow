@@ -1,0 +1,643 @@
+\section{Source Code Snippets}
+
+This appendix contains key source code implementations demonstrating core NexusFlow functionality across Android and firmware layers.
+
+\subsection{Android: Command Execution Funnel}
+
+\begin{lstlisting}[language=Kotlin, caption=Unified Relay Command Funnel, label=lst:android_command_funnel]
+/**
+ * Unified command funnel - all relay control paths converge here
+ * Ensures consistent state management and auditability
+ */
+suspend fun applyCommand(
+    deviceId: String,
+    relayIndex: Int,
+    action: RelayAction,
+    source: CommandSource,
+    metadata: CommandMetadata? = null
+): Result<CommandResponse> = withContext(Dispatchers.Default) {
+    try {
+        // Pre-execution validation
+        if (relayIndex !in 0..5) {
+            return@withContext Result.failure(
+                InvalidRelayException("Relay index $relayIndex out of range")
+            )
+        }
+        
+        val device = deviceRepository.getDevice(deviceId)
+            ?: return@withContext Result.failure(
+                DeviceNotFoundException("Device $deviceId not found")
+            )
+        
+        // Check for conflicts
+        if (source != CommandSource.AUTOMATION) {
+            val conflictingSchedule = scheduleRepository
+                .getScheduleForRelay(deviceId, relayIndex)
+            if (conflictingSchedule?.isActive == true) {
+                return@withContext Result.failure(
+                    RelayLockedException(
+                        "Relay locked by schedule: ${conflictingSchedule.name}"
+                    )
+                )
+            }
+        }
+        
+        // Create command object
+        val command = Command(
+            id = "${deviceId}_${System.currentTimeMillis()}",
+            deviceId = deviceId,
+            relay = relayIndex,
+            action = action,
+            source = source,
+            userId = getCurrentUserId(),
+            timestamp = System.currentTimeMillis(),
+            executed = false,
+            metadata = metadata
+        )
+        
+        // Write to Room immediately (optimistic update)
+        roomDatabase.commandDao().insert(command)
+        
+        // Update local relay state immediately
+        val relayState = RelayState(
+            deviceId = deviceId,
+            relayId = relayIndex,
+            state = action,
+            lastToggled = System.currentTimeMillis(),
+            locked = source == CommandSource.SCHEDULE
+        )
+        roomDatabase.relayStateDao().update(relayState)
+        
+        // Accumulate runtime for energy tracking
+        if (action == RelayAction.ON) {
+            roomDatabase.runtimeDao()
+                .startTracking(deviceId, relayIndex)
+        }
+        
+        // Send to Firebase (async, with retry on failure)
+        val firebaseResult = firebaseRepository
+            .sendCommand(command)
+            .catch { error ->
+                Log.e("applyCommand", "Firebase error: ${error.message}")
+                // Command remains in queue for retry
+            }
+            .firstOrNull()
+        
+        // Post-execution logging
+        logCommand(
+            source = source,
+            deviceId = deviceId,
+            relay = relayIndex,
+            action = action,
+            timestamp = System.currentTimeMillis(),
+            success = true
+        )
+        
+        // Notify listeners
+        _relayStateUpdated.emit(relayState)
+        
+        return@withContext Result.success(
+            CommandResponse(
+                commandId = command.id,
+                relay = relayIndex,
+                status = "queued",
+                newState = action.toString()
+            )
+        )
+        
+    } catch (e: Exception) {
+        Log.e("applyCommand", "Unexpected error", e)
+        return@withContext Result.failure(e)
+    }
+}
+\end{lstlisting}
+
+\subsection{Android: Offline Command Queue Retry}
+
+\begin{lstlisting}[language=Kotlin, caption=Command Queue Retry Logic, label=lst:android_queue_retry]
+/**
+ * Background job that processes queued commands upon connectivity restoration
+ */
+class CommandQueueWorker(context: Context, params: WorkerParameters) : 
+    CoroutineWorker(context, params) {
+    
+    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        try {
+            val queuedCommands = commandRepository.getQueuedCommands()
+            var successCount = 0
+            var failureCount = 0
+            
+            for (command in queuedCommands) {
+                val retryCount = command.retryCount ?: 0
+                
+                if (retryCount >= MAX_RETRIES) {
+                    commandRepository.markCommandFailed(command.id)
+                    failureCount++
+                    continue
+                }
+                
+                try {
+                    // Attempt to send to Firebase
+                    val response = firebaseRepository
+                        .sendCommand(command)
+                        .firstOrNull()
+                    
+                    if (response?.status == "success") {
+                        commandRepository.removeFromQueue(command.id)
+                        successCount++
+                        Log.d("CommandQueueWorker", 
+                            "Queued command executed: ${command.id}")
+                    } else {
+                        // Increment retry count
+                        commandRepository.incrementRetry(command.id)
+                        failureCount++
+                    }
+                    
+                } catch (e: Exception) {
+                    Log.w("CommandQueueWorker", "Retry failed", e)
+                    commandRepository.incrementRetry(command.id)
+                    failureCount++
+                }
+            }
+            
+            // Notify user of sync completion
+            if (successCount > 0) {
+                sendNotification(
+                    "NexusFlow Queue",
+                    "Synced $successCount pending commands"
+                )
+            }
+            
+            return@withContext if (failureCount == 0) 
+                Result.success() 
+            else 
+                Result.retry()
+                
+        } catch (e: Exception) {
+            Log.e("CommandQueueWorker", "Fatal error", e)
+            return@withContext Result.retry()
+        }
+    }
+}
+\end{lstlisting}
+
+\subsection{ESP32 Firmware: Relay Manager}
+
+\begin{lstlisting}[language=C++, caption=ESP32 Relay Manager Module, label=lst:firmware_relay_manager]
+// RelayManager.cpp - Relay control and state tracking
+
+#include "RelayManager.h"
+#include <esp_log.h>
+
+static const char* TAG = "RelayManager";
+
+// GPIO pin configuration
+const int RELAY_PINS[RELAY_COUNT] = {19, 18, 5, 17, 16, 25};
+uint32_t relay_runtime_seconds[RELAY_COUNT] = {0};
+bool relay_state[RELAY_COUNT] = {false};  // false = OFF, true = ON
+unsigned long relay_toggle_time[RELAY_COUNT] = {0};
+
+void RelayManager::init() {
+    ESP_LOGI(TAG, "Initializing RelayManager with %d relays", RELAY_COUNT);
+    
+    for (int i = 0; i < RELAY_COUNT; i++) {
+        pinMode(RELAY_PINS[i], OUTPUT);
+        digitalWrite(RELAY_PINS[i], HIGH);  // Active-LOW: start inactive
+        relay_state[i] = false;
+        relay_runtime_seconds[i] = 0;
+        relay_toggle_time[i] = millis();
+    }
+    
+    ESP_LOGI(TAG, "RelayManager initialized successfully");
+}
+
+/**
+ * Apply command through unified funnel
+ * All relay control paths converge here
+ */
+bool RelayManager::applyCommand(
+    uint8_t relay_pin,
+    RelayAction action,
+    CommandSource source,
+    uint32_t timestamp
+) {
+    if (relay_pin >= RELAY_COUNT) {
+        ESP_LOGE(TAG, "Invalid relay pin: %d", relay_pin);
+        return false;
+    }
+    
+    // Pre-execution safety checks
+    if (isRelayLocked(relay_pin)) {
+        ESP_LOGW(TAG, "Relay %d locked; command rejected", relay_pin);
+        return false;
+    }
+    
+    // Execute relay control
+    bool success = toggleRelay(relay_pin, action);
+    if (!success) {
+        ESP_LOGE(TAG, "Failed to toggle relay %d", relay_pin);
+        return false;
+    }
+    
+    // Update tracking
+    updateRuntimeTracking(relay_pin);
+    
+    // Log command for debugging
+    ESP_LOGI(TAG, "Relay %d toggled %s (source: %d, timestamp: %u)",
+             relay_pin, 
+             relay_state[relay_pin] ? "ON" : "OFF",
+             source,
+             timestamp);
+    
+    // Post-execution sync
+    syncToFirebase(relay_pin);
+    logCommand(relay_pin, action, source, timestamp);
+    
+    return true;
+}
+
+/**
+ * Toggle relay hardware
+ */
+bool RelayManager::toggleRelay(uint8_t relay_pin, RelayAction action) {
+    if (relay_pin >= RELAY_COUNT) return false;
+    
+    switch (action) {
+        case RelayAction::ON:
+            digitalWrite(RELAY_PINS[relay_pin], LOW);  // Active-LOW
+            relay_state[relay_pin] = true;
+            break;
+            
+        case RelayAction::OFF:
+            digitalWrite(RELAY_PINS[relay_pin], HIGH);  // Inactive
+            relay_state[relay_pin] = false;
+            break;
+            
+        case RelayAction::TOGGLE:
+            digitalWrite(RELAY_PINS[relay_pin], 
+                        relay_state[relay_pin] ? HIGH : LOW);
+            relay_state[relay_pin] = !relay_state[relay_pin];
+            break;
+            
+        default:
+            ESP_LOGE(TAG, "Unknown relay action: %d", (int)action);
+            return false;
+    }
+    
+    relay_toggle_time[relay_pin] = millis();
+    return true;
+}
+
+/**
+ * Accumulate relay runtime for energy tracking
+ */
+void RelayManager::updateRuntimeTracking(uint8_t relay_pin) {
+    if (relay_pin >= RELAY_COUNT) return;
+    
+    static unsigned long last_update = 0;
+    unsigned long now = millis();
+    unsigned long delta = (now - last_update) / 1000;  // Convert to seconds
+    
+    if (delta > 0) {
+        for (int i = 0; i < RELAY_COUNT; i++) {
+            if (relay_state[i]) {  // Only accumulate when ON
+                relay_runtime_seconds[i] += delta;
+            }
+        }
+        last_update = now;
+    }
+}
+
+/**
+ * Get relay state
+ */
+bool RelayManager::getRelayState(uint8_t relay_pin) {
+    if (relay_pin >= RELAY_COUNT) return false;
+    return relay_state[relay_pin];
+}
+
+/**
+ * Get accumulated runtime in hours
+ */
+float RelayManager::getRuntimeHours(uint8_t relay_pin) {
+    if (relay_pin >= RELAY_COUNT) return 0.0f;
+    return (float)relay_runtime_seconds[relay_pin] / 3600.0f;
+}
+
+/**
+ * Check if relay is locked by schedule or automation
+ */
+bool RelayManager::isRelayLocked(uint8_t relay_pin) {
+    // TODO: Implement conflict checking with schedule manager
+    return false;
+}
+\end{lstlisting}
+
+\subsection{ESP32 Firmware: Automation Engine}
+
+\begin{lstlisting}[language=C++, caption=Automation Rule Evaluation Engine, label=lst:firmware_automation_engine]
+// AutomationEngine.cpp - Rule-based device automation
+
+#include "AutomationEngine.h"
+#include "SensorManager.h"
+#include "RelayManager.h"
+
+static const char* TAG = "AutomationEngine";
+
+#define AUTOMATION_CYCLE_INTERVAL 30000  // 30 seconds
+
+unsigned long last_evaluation = 0;
+
+void AutomationEngine::init() {
+    ESP_LOGI(TAG, "Initializing AutomationEngine");
+    last_evaluation = millis();
+}
+
+/**
+ * Main automation loop - evaluates all rules every 30 seconds
+ */
+void AutomationEngine::update() {
+    unsigned long now = millis();
+    
+    if ((now - last_evaluation) < AUTOMATION_CYCLE_INTERVAL) {
+        return;  // Not time to evaluate yet
+    }
+    
+    last_evaluation = now;
+    
+    // Get current sensor readings
+    float temperature = SensorManager::getTemperature();
+    float humidity = SensorManager::getHumidity();
+    
+    ESP_LOGI(TAG, "Evaluation cycle - Temp: %.1f deg C, Humidity: %.1f%%",
+             temperature, humidity);
+    
+    // Evaluate all registered rules
+    evaluateTemperatureThresholdRules(temperature);
+    evaluateHumidityThresholdRules(humidity);
+    evaluateDualSensorRules(temperature, humidity);
+}
+
+/**
+ * Evaluate temperature threshold rules with hysteresis
+ */
+void AutomationEngine::evaluateTemperatureThresholdRules(float temp) {
+    // Example: AC ON if Temp > 28 deg C with 1 deg C hysteresis
+    static bool ac_rule_triggered = false;
+    
+    const float TEMP_THRESHOLD = 28.0f;
+    const float HYSTERESIS = 1.0f;
+    
+    // Rising edge: trigger when temp >= threshold + hysteresis
+    if (!ac_rule_triggered && temp >= (TEMP_THRESHOLD + HYSTERESIS)) {
+        ESP_LOGI(TAG, "AC rule triggered: Temp %.1f >= %.1f",
+                 temp, TEMP_THRESHOLD + HYSTERESIS);
+        RelayManager::applyCommand(0, RelayAction::ON, 
+                                   CommandSource::AUTOMATION, 
+                                   millis());
+        ac_rule_triggered = true;
+    }
+    
+    // Falling edge: reset when temp <= threshold - hysteresis
+    if (ac_rule_triggered && temp <= (TEMP_THRESHOLD - HYSTERESIS)) {
+        ESP_LOGI(TAG, "AC rule reset: Temp %.1f <= %.1f",
+                 temp, TEMP_THRESHOLD - HYSTERESIS);
+        RelayManager::applyCommand(0, RelayAction::OFF, 
+                                   CommandSource::AUTOMATION, 
+                                   millis());
+        ac_rule_triggered = false;
+    }
+}
+
+/**
+ * Evaluate dual-sensor rules (temperature AND humidity)
+ */
+void AutomationEngine::evaluateDualSensorRules(float temp, float humidity) {
+    // Example: Dehumidifier ON if (Temp > 25 AND Humidity > 70)
+    static bool dehumidifier_triggered = false;
+    
+    const float TEMP_THRESHOLD = 25.0f;
+    const float HUMIDITY_THRESHOLD = 70.0f;
+    const float TEMP_HYSTERESIS = 1.0f;
+    const float HUMIDITY_HYSTERESIS = 3.0f;
+    
+    bool temp_condition = temp > (TEMP_THRESHOLD + TEMP_HYSTERESIS);
+    bool humidity_condition = humidity > (HUMIDITY_THRESHOLD + HUMIDITY_HYSTERESIS);
+    bool should_trigger = temp_condition && humidity_condition;
+    
+    if (!dehumidifier_triggered && should_trigger) {
+        ESP_LOGI(TAG, "Dehumidifier ON: Temp=%.1f, Humidity=%.1f",
+                 temp, humidity);
+        RelayManager::applyCommand(2, RelayAction::ON, 
+                                   CommandSource::AUTOMATION, 
+                                   millis());
+        dehumidifier_triggered = true;
+    }
+    
+    if (dehumidifier_triggered && !should_trigger) {
+        // Reset only when both conditions fall below thresholds
+        bool temp_reset = temp < (TEMP_THRESHOLD - TEMP_HYSTERESIS);
+        bool humidity_reset = humidity < (HUMIDITY_THRESHOLD - HUMIDITY_HYSTERESIS);
+        
+        if (temp_reset || humidity_reset) {
+            ESP_LOGI(TAG, "Dehumidifier OFF");
+            RelayManager::applyCommand(2, RelayAction::OFF, 
+                                       CommandSource::AUTOMATION, 
+                                       millis());
+            dehumidifier_triggered = false;
+        }
+    }
+}
+
+/**
+ * Log rule evaluation for debugging
+ */
+void AutomationEngine::logRuleExecution(
+    const char* rule_name,
+    bool executed,
+    int relay_pin,
+    RelayAction action
+) {
+    if (executed) {
+        ESP_LOGI(TAG, "Rule '%s' executed: Relay %d -> %s",
+                 rule_name, relay_pin,
+                 action == RelayAction::ON ? "ON" : "OFF");
+    }
+}
+\end{lstlisting}
+
+\subsection{Android: Presence Heartbeat}
+
+\begin{lstlisting}[language=Kotlin, caption=Presence Sync Mechanism, label=lst:android_presence]
+/**
+ * Manages user presence for adaptive Firebase sync intervals
+ */
+class PresenceManager(
+    private val firebaseDatabase: FirebaseDatabase,
+    private val userId: String
+) {
+    
+    private val presenceReference = 
+        firebaseDatabase.reference.child("presence/$userId")
+    
+    /**
+     * Write presence heartbeat when app becomes active
+     */
+    fun onAppForeground(deviceId: String) {
+        val presenceData = mapOf(
+            "lastActive" to System.currentTimeMillis(),
+            "appVersion" to BuildConfig.VERSION_NAME,
+            "userId" to userId
+        )
+        
+        presenceReference.child(deviceId).setValue(presenceData)
+            .addOnSuccessListener {
+                Log.d("PresenceManager", "Presence updated: $deviceId")
+            }
+            .addOnFailureListener { error ->
+                Log.w("PresenceManager", "Presence update failed", error)
+            }
+        
+        // Set up onDisconnect cleanup
+        presenceReference.child(deviceId)
+            .onDisconnect()
+            .removeValue()
+            .addOnFailureListener { error ->
+                Log.w("PresenceManager", "onDisconnect setup failed", error)
+            }
+    }
+    
+    /**
+     * Called from lifecycle when app enters background
+     * Firebase onDisconnect listener will clean up automatically
+     */
+    fun onAppBackground() {
+        // Explicit cleanup not needed; onDisconnect handles it
+        Log.d("PresenceManager", "App backgrounded; onDisconnect active")
+    }
+}
+
+/**
+ * Adjust Firebase sync interval based on presence state
+ */
+class PresenceAwareSyncManager(
+    private val firebaseDatabase: FirebaseDatabase,
+    private val deviceId: String
+) {
+    
+    private val presenceReference = firebaseDatabase.reference
+        .child("presence/$deviceId")
+    
+    fun startMonitoringPresence() {
+        presenceReference.addValueEventListener(
+            object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val presence = snapshot.value as? Map<*, *>
+                    
+                    if (presence != null && presence.isNotEmpty()) {
+                        // User is active - use 1-minute sync interval
+                        setSyncInterval(SYNC_INTERVAL_ACTIVE_MS)
+                        Log.d("PresenceSyncManager", "User active: 1-min sync")
+                    } else {
+                        // User is idle - use 15-minute sync interval
+                        setSyncInterval(SYNC_INTERVAL_IDLE_MS)
+                        Log.d("PresenceSyncManager", "User idle: 15-min sync")
+                    }
+                }
+                
+                override fun onCancelled(error: DatabaseError) {
+                    Log.e("PresenceSyncManager", 
+                        "Presence monitoring error", error.toException())
+                }
+            }
+        )
+    }
+    
+    private fun setSyncInterval(intervalMs: Long) {
+        // Update Firebase listener with new interval
+        // Implementation depends on sync mechanism
+    }
+    
+    companion object {
+        private const val SYNC_INTERVAL_ACTIVE_MS = 60_000   // 1 minute
+        private const val SYNC_INTERVAL_IDLE_MS = 900_000    // 15 minutes
+    }
+}
+\end{lstlisting}
+
+\section{Compilation and Deployment}
+
+\subsection{Android Build and Installation}
+
+\begin{lstlisting}[language=bash, caption=Android Build Commands, label=lst:android_build]
+# Build debug APK
+./gradlew assembleDebug
+
+# Install on connected device
+./gradlew installDebug
+
+# Build release APK (requires signing configuration)
+./gradlew assembleRelease
+
+# Run unit tests
+./gradlew testDebugUnitTest
+
+# Run instrumented tests on device
+./gradlew connectedAndroidTest
+\end{lstlisting}
+
+\subsection{ESP32 Firmware Build}
+
+\begin{lstlisting}[language=bash, caption=ESP32 Build and Flash, label=lst:esp32_build]
+# Build firmware
+idf.py build
+
+# Flash to device
+idf.py -p /dev/ttyUSB0 flash
+
+# Monitor serial output
+idf.py -p /dev/ttyUSB0 monitor
+
+# Build and flash in one command
+idf.py -p /dev/ttyUSB0 flash monitor
+
+# Full clean rebuild
+idf.py fullclean build
+\end{lstlisting}
+
+\section{Testing and Debugging}
+
+\subsection{Android Debugging}
+
+\begin{lstlisting}[language=bash, caption=Android Debug Tools, label=lst:android_debug]
+# List connected devices
+adb devices
+
+# View live logs
+adb logcat | grep "NexusFlow"
+
+# Dump Room database
+adb shell "sqlite3 /data/data/com.nexusflow.app/databases/nexusflow_db.db"
+
+# Monitor network traffic (requires tcpdump)
+adb shell "su 0 tcpdump -i any -w /sdcard/capture.pcap"
+
+# Inspect Firebase RTDB locally
+# Use Firebase Emulator Suite
+firebase emulators:start
+\end{lstlisting}
+
+\subsection{ESP32 Serial Debugging}
+
+\begin{lstlisting}[language=bash, caption=ESP32 Serial Monitoring, label=lst:esp32_debug]
+# Monitor with timestamps
+idf.py monitor --timestamps
+
+# Log specific module
+idf.py monitor --tag RelayManager
+
+# Export logs to file
+idf.py monitor > esp32_logs.txt 2>&1
+\end{lstlisting}
+
+These code snippets represent the core functional components of NexusFlow, demonstrating best practices in mobile development, embedded systems, and IoT integration.

@@ -1,0 +1,436 @@
+\section{API and Command Structure}
+
+This appendix documents the command protocol, data structures, and API interfaces for NexusFlow system communication.
+
+\subsection{Command Message Format}
+
+All commands follow a standardized JSON structure transmitted via Firebase RTDB.
+
+\begin{lstlisting}[language=json, caption=Command Message Structure, label=lst:command_format]
+{
+  "relay": 1,
+  "action": "ON",
+  "source": "user",
+  "userId": "user_12345",
+  "timestamp": 1720788850000,
+  "executed": false,
+  "metadata": {
+    "sourceApp": "NexusFlow_Android_1.0.2",
+    "sourceType": "mobile",
+    "latitude": 40.7128,
+    "longitude": -74.0060
+  }
+}
+\end{lstlisting}
+
+\subsection{Command Types and Sources}
+
+\begin{table}[H]
+\centering
+\caption{Command Source Types}
+\label{tbl:command_sources}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Source} & \textbf{Originator} & \textbf{Example} \\
+\hline
+user & Mobile app user action & Toggle relay manually \\
+\hline
+schedule & Scheduled automation & Morning routine at 7 AM \\
+\hline
+automation & Rule-based automation & AC ON if Temp > 30°C \\
+\hline
+scene & Scene activation & Movie Night scene \\
+\hline
+ble & BLE remote control & Future: physical remote via BLE \\
+\hline
+system & Internal system event & Device reset, watchdog trigger \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Relay Action Types}
+
+\begin{lstlisting}[language=kotlin, caption=Relay Action Enum, label=lst:relay_actions]
+enum class RelayAction(val pinLevel: Int) {
+    ON(0),      // Active-LOW: GPIO pulled LOW
+    OFF(1),     // Inactive: GPIO pulled HIGH
+    TOGGLE(2),  // Toggle current state
+    PULSE(3)    // Momentary pulse (for special devices)
+}
+\end{lstlisting}
+
+\subsection{Response Format}
+
+Device responses to commands:
+
+\begin{lstlisting}[language=json, caption=Command Response Format, label=lst:response_format]
+{
+  "commandId": "1720788850000",
+  "relay": 1,
+  "status": "success",
+  "newState": "ON",
+  "executedAt": 1720788851234,
+  "executionTime": 1234,
+  "metadata": {
+    "firmwareVersion": "1.0.2",
+    "signalStrength": -45,
+    "temperature": 26.5,
+    "humidity": 65.3
+  }
+}
+\end{lstlisting}
+
+\subsection{Error Response Format}
+
+\begin{lstlisting}[language=json, caption=Error Response Format, label=lst:error_response]
+{
+  "commandId": "1720788850000",
+  "relay": 1,
+  "status": "error",
+  "errorCode": "RELAY_LOCKED",
+  "errorMessage": "Relay 1 is locked; conflict with active schedule",
+  "timestamp": 1720788851234
+}
+\end{lstlisting}
+
+\subsection{Error Codes}
+
+\begin{table}[H]
+\centering
+\caption{Standard Error Codes}
+\label{tbl:error_codes}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Error Code} & \textbf{Meaning} & \textbf{Action} \\
+\hline
+SUCCESS & Command executed & None \\
+\hline
+RELAY\_INVALID & Relay index out of range & Check relay number \\
+\hline
+RELAY\_LOCKED & Relay locked by conflict & Wait or resolve conflict \\
+\hline
+ACTION\_INVALID & Invalid action type & Use ON/OFF/TOGGLE/PULSE \\
+\hline
+DEVICE\_OFFLINE & Device not connected & Retry with backoff \\
+\hline
+FIREBASE\_ERROR & Firebase write failed & Queued for retry \\
+\hline
+TIMEOUT & Command execution timeout & Retry with new timestamp \\
+\hline
+AUTH\_FAILED & Authentication failed & Verify user credentials \\
+\hline
+RATE\_LIMITED & Too many commands & Backoff and retry \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{BLE Provisioning Protocol}
+
+\subsection{BLE Characteristics}
+
+\begin{table}[H]
+\centering
+\caption{NexusFlow BLE GATT Characteristics}
+\label{tbl:ble_characteristics}
+\begin{tabular}{|l|l|l|l|}
+\hline
+\textbf{UUID} & \textbf{Property} & \textbf{Purpose} & \textbf{Length} \\
+\hline
+00000001-0000-1000-8000-00805f9b34fb & READ/WRITE & Device Info Request & 1 byte \\
+\hline
+00000002-0000-1000-8000-00805f9b34fb & READ/WRITE & PIN Verification & 32 bytes \\
+\hline
+00000003-0000-1000-8000-00805f9b34fb & READ/WRITE & WiFi SSID & 32 bytes \\
+\hline
+00000004-0000-1000-8000-00805f9b34fb & READ/WRITE & WiFi Password & 64 bytes \\
+\hline
+00000005-0000-1000-8000-00805f9b34fb & NOTIFY & Status Updates & 20 bytes \\
+\hline
+00000006-0000-1000-8000-00805f9b34fb & READ & Device Summary & 128 bytes \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Provisioning Handshake}
+
+\begin{lstlisting}[language=kotlin, caption=BLE Provisioning Sequence, label=lst:ble_handshake]
+// Step 1: App requests device info
+BLE_WRITE(0x00000001, "INFO_REQUEST")
+// Device responds with info
+
+// Step 2: App sends PIN (encrypted)
+pinData = encrypt(userPin, deviceSecret)
+BLE_WRITE(0x00000002, pinData)
+// Device verifies and responds with PIN_VERIFIED or PIN_INVALID
+
+// Step 3: App sends WiFi SSID
+BLE_WRITE(0x00000003, wifiSsid.toByteArray())
+// Device acknowledges
+
+// Step 4: App sends WiFi Password (encrypted)
+passwordData = encrypt(wifiPassword, sessionKey)
+BLE_WRITE(0x00000004, passwordData)
+// Device connects to WiFi, responds with WIFI_CONNECTED
+
+// Step 5: App queries device summary
+summary = BLE_READ(0x00000006)
+// Device returns: Hardware ID, Channel Count, Firmware Version, MAC Address
+
+// Step 6: Device registered in Firebase
+// Provisioning complete
+\end{lstlisting}
+
+\section{REST API (Future Enhancement)}
+
+Proposed REST API for third-party integrations:
+
+\subsection{Authentication}
+
+\begin{lstlisting}[language=bash, caption=API Authentication, label=lst:api_auth]
+# Obtain Bearer token
+curl -X POST https://api.nexusflow.io/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"secure_pass"}'
+
+# Response
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+  "expiresIn": 3600,
+  "refreshToken": "refresh_token_xyz"
+}
+
+# Use token in subsequent requests
+curl -X GET https://api.nexusflow.io/devices \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
+\end{lstlisting}
+
+\subsection{API Endpoints}
+
+\begin{table}[H]
+\centering
+\caption{NexusFlow REST API Endpoints (Planned)}
+\label{tbl:api_endpoints}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Endpoint} & \textbf{Method} & \textbf{Description} \\
+\hline
+/devices & GET & List all devices \\
+\hline
+/devices/:id & GET & Get device details \\
+\hline
+/devices/:id/relays & GET & Get relay states \\
+\hline
+/devices/:id/relays/:num & PUT & Toggle relay \\
+\hline
+/devices/:id/automation & GET & List automation rules \\
+\hline
+/devices/:id/automation & POST & Create automation rule \\
+\hline
+/schedules & GET & List schedules \\
+\hline
+/schedules & POST & Create schedule \\
+\hline
+/scenes & GET & List scenes \\
+\hline
+/scenes/:id/activate & POST & Activate scene \\
+\hline
+/stats/energy & GET & Energy consumption data \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Data Type Definitions}
+
+\subsection{Device Object}
+
+\begin{lstlisting}[language=kotlin, caption=Device Data Structure, label=lst:device_object]
+data class Device(
+    val id: String,
+    val userId: String,
+    val name: String,
+    val location: String,
+    val hardwareId: String,
+    val firmwareVersion: String,
+    val channelCount: Int,
+    val wifiSsid: String,
+    val wifiStatus: String,  // connected, disconnected, error
+    val pairedDate: Long,
+    val lastSeen: Long,
+    val icon: String,
+    val notes: String
+)
+\end{lstlisting}
+
+\subsection{Relay State Object}
+
+\begin{lstlisting}[language=kotlin, caption=Relay State Structure, label=lst:relay_state_object]
+data class RelayState(
+    val deviceId: String,
+    val relayId: Int,
+    val state: RelayAction,
+    val lastToggled: Long,
+    val runtimeHours: Float,
+    val estimatedConsumption: Float,  // kWh
+    val locked: Boolean,
+    val lockedBy: String?  // reason or schedule ID
+)
+\end{lstlisting}
+
+\subsection{Automation Rule Object}
+
+\begin{lstlisting}[language=kotlin, caption=Automation Rule Structure, label=lst:rule_object]
+data class AutomationRule(
+    val id: String,
+    val deviceId: String,
+    val name: String,
+    val relayId: Int,
+    val action: RelayAction,
+    val condition: Condition,
+    val enabled: Boolean,
+    val createdAt: Long,
+    val lastTriggered: Long?
+)
+
+sealed class Condition {
+    data class Temperature(
+        val operator: String,  // >, <, ==, >=, <=
+        val value: Float,
+        val hysteresis: Float
+    ) : Condition()
+    
+    data class Humidity(
+        val operator: String,
+        val value: Float,
+        val hysteresis: Float
+    ) : Condition()
+    
+    data class DualSensor(
+        val tempCondition: Temperature,
+        val humidityCondition: Humidity,
+        val logic: String  // AND, OR
+    ) : Condition()
+}
+\end{lstlisting}
+
+\section{Webhook Events}
+
+Planned webhook system for real-time notifications:
+
+\begin{table}[H]
+\centering
+\caption{Webhook Event Types}
+\label{tbl:webhook_events}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Event Type} & \textbf{Triggered When} \\
+\hline
+relay.toggled & User toggles relay \\
+\hline
+device.online & Device connects to network \\
+\hline
+device.offline & Device disconnects \\
+\hline
+automation.triggered & Automation rule executes \\
+\hline
+schedule.executed & Schedule runs \\
+\hline
+alert.temperature & Temperature exceeds threshold \\
+\hline
+alert.device\_error & Device reports error \\
+\hline
+\end{tabular}
+\end{table}
+
+Example webhook payload:
+
+\begin{lstlisting}[language=json, caption=Webhook Event Payload, label=lst:webhook_payload]
+{
+  "event": "relay.toggled",
+  "timestamp": 1720788850000,
+  "deviceId": "esp32_001",
+  "relay": 1,
+  "action": "ON",
+  "source": "user",
+  "userId": "user_12345",
+  "metadata": {
+    "userId": "user_12345",
+    "appVersion": "1.0.2"
+  }
+}
+\end{lstlisting}
+
+\section{Rate Limiting and Quotas}
+
+\begin{table}[H]
+\centering
+\caption{API Rate Limits}
+\label{tbl:rate_limits}
+\begin{tabular}{|l|c|}
+\hline
+\textbf{Operation} & \textbf{Limit} \\
+\hline
+Commands per device per minute & 30 \\
+\hline
+API requests per user per minute & 100 \\
+\hline
+Firebase sync per device per minute & 60 \\
+\hline
+BLE provisioning attempts per device & 5 (with 1-minute cooldown after 3 failures) \\
+\hline
+Webhook deliveries per hour & 1000 \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Examples and Implementations}
+
+\subsection{Toggle Relay via Command}
+
+\begin{lstlisting}[language=bash, caption=Toggle Relay Curl Example, label=lst:toggle_relay_curl]
+# Send toggle command
+curl -X POST https://api.nexusflow.io/devices/esp32_001/relays/1 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "TOGGLE",
+    "source": "api",
+    "metadata": {"app": "HomeAutomation"}
+  }'
+
+# Response
+{
+  "commandId": "1720788850000",
+  "relay": 1,
+  "status": "queued",
+  "estimatedExecutionTime": 1200
+}
+\end{lstlisting}
+
+\subsection{Create Automation Rule via API}
+
+\begin{lstlisting}[language=bash, caption=Create Automation Rule, label=lst:create_rule_api]
+curl -X POST https://api.nexusflow.io/devices/esp32_001/automation \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "AC Temperature Control",
+    "relay": 1,
+    "action": "ON",
+    "condition": {
+      "type": "temperature",
+      "operator": ">",
+      "value": 28.0,
+      "hysteresis": 1.0
+    },
+    "enabled": true
+  }'
+
+# Response
+{
+  "ruleId": "rule_temp_ac_001",
+  "status": "created",
+  "deviceId": "esp32_001"
+}
+\end{lstlisting}
+
+This API structure provides extensibility for future integrations while maintaining backward compatibility with the core Firebase RTDB synchronization layer.

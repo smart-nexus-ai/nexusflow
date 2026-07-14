@@ -1,0 +1,255 @@
+\chapter{Literature Survey and Existing Systems}
+
+\section{Overview of Smart Home Automation}
+
+Smart home automation has evolved significantly over the past decade, with numerous commercial and open-source solutions available. This chapter reviews existing systems, identifies their strengths and limitations, and positions NexusFlow within the broader ecosystem.
+
+\section{Existing Smart Home Systems}
+
+\subsection{Blynk}
+
+Blynk is a widely-used IoT platform offering cloud-based device control through a mobile application.
+
+\textbf{Strengths:}
+\begin{itemize}
+    \item Easy setup and rapid prototyping
+    \item Rich widget library for UI customization
+    \item Support for multiple microcontroller boards
+\end{itemize}
+
+\textbf{Limitations:}
+\begin{itemize}
+    \item Heavy cloud dependency—no offline control capability
+    \item Free tier has data rate limitations
+    \item Recurring subscription costs for production deployment
+    \item Limited on-device automation capabilities
+\end{itemize}
+
+\subsection{Tuya}
+
+Tuya is a comprehensive cloud platform connecting smart devices globally.
+
+\textbf{Strengths:}
+\begin{itemize}
+    \item Extensive device ecosystem integration
+    \item Multi-language and multi-region support
+    \item Advanced analytics and data insights
+\end{itemize}
+
+\textbf{Limitations:}
+\begin{itemize}
+    \item Mandatory cloud connectivity for all operations
+    \item Data privacy concerns due to centralized architecture
+    \item High integration costs for custom devices
+    \item Vendor lock-in and proprietary protocols
+\end{itemize}
+
+\subsection{Google Home}
+
+Google's smart home ecosystem focuses on voice control and deep Android integration.
+
+\textbf{Strengths:}
+\begin{itemize}
+    \item Seamless integration with Android ecosystem
+    \item Powerful voice recognition and natural language processing
+    \item Extensive device compatibility through Google Home ecosystem
+\end{itemize}
+
+\textbf{Limitations:}
+\begin{itemize}
+    \item Requires Google account and cloud connectivity
+    \item Limited privacy control over data collection
+    \item Expensive compatible hardware
+    \item Complex device onboarding process
+\end{itemize}
+
+\subsection{Home Assistant}
+
+Home Assistant is an open-source platform for building privacy-first smart homes.
+
+\textbf{Strengths:}
+\begin{itemize}
+    \item Completely local, privacy-preserving architecture
+    \item Extensive integration support (200+ platforms)
+    \item Open-source and highly customizable
+    \item No subscription costs
+\end{itemize}
+
+\textbf{Limitations:}
+\begin{itemize}
+    \item Requires dedicated hardware (Raspberry Pi or always-on computer)
+    \item Steep learning curve for configuration
+    \item Limited mobile app compared to cloud-based alternatives
+    \item Complex setup and maintenance
+\end{itemize}
+
+\subsection{Sinric Pro}
+
+Sinric Pro provides voice control integration with Amazon Alexa and Google Assistant.
+
+\textbf{Strengths:}
+\begin{itemize}
+    \item Easy voice assistant integration
+    \item Quick device setup
+    \item Community support
+\end{itemize}
+
+\textbf{Limitations:}
+\begin{itemize}
+    \item Cloud-dependent voice services
+    \item Limited free tier functionality
+    \item Subscription required for full feature access
+    \item Basic UI without advanced customization
+\end{itemize}
+
+\subsection{ESPHome}
+
+ESPHome is a firmware framework for creating smart home devices based on ESP8266/ESP32.
+
+\textbf{Strengths:}
+\begin{itemize}
+    \item Declarative YAML configuration (no complex coding required)
+    \item Full local control with optional cloud integrations
+    \item Excellent documentation and community support
+    \item Works seamlessly with Home Assistant
+\end{itemize}
+
+\textbf{Limitations:}
+\begin{itemize}
+    \item Limited to firmware-level functionality—no app provided
+    \item Mobile interface requires separate Home Assistant installation
+    \item Less flexible than native firmware for custom requirements
+\end{itemize}
+
+\section{Comparative Analysis}
+
+\begin{table}[H]
+\centering
+\caption{Comparison of Smart Home Automation Systems}
+\label{tbl:comparison}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|c|c|c|c|c|c|c|}
+\hline
+\textbf{Parameter} & \textbf{Blynk} & \textbf{Tuya} & \textbf{Google Home} & \textbf{Home Assistant} & \textbf{Sinric Pro} & \textbf{ESPHome} & \textbf{NexusFlow} \\
+\hline
+Offline Control & ✗ & ✗ & ✗ & ✓ & ✗ & ✓ & ✓ \\
+\hline
+Cloud-Free Setup & ✗ & ✗ & ✗ & ✓ & ✗ & ✓ & ✓ \\
+\hline
+BLE Provisioning & ✗ & ✗ & ✗ & ✗ & ✗ & ✗ & ✓ \\
+\hline
+Per-Device Runtime Tracking & ✗ & ✓ & ✗ & ✗ & ✗ & ✗ & ✓ \\
+\hline
+Presence-Based Sync & ✗ & ✗ & ✓ & ✗ & ✗ & ✗ & ✓ \\
+\hline
+Room-Level Caching & ✗ & ✗ & ✗ & ✗ & ✗ & ✗ & ✓ \\
+\hline
+Schedule Conflict Prevention & ✗ & Limited & ✗ & ✓ & ✗ & ✓ & ✓ \\
+\hline
+Open Source & ✗ & ✗ & Partial & ✓ & ✗ & ✓ & ✗ \\
+\hline
+Subscription Required & ✓ & ✓ & ✗ & ✗ & ✓ & ✗ & ✗ \\
+\hline
+Native Mobile App & ✓ & ✓ & ✓ & ✗ & ✓ & ✗ & ✓ \\
+\hline
+\end{tabular}%
+}
+\end{table}
+
+\section{Key Differentiators of NexusFlow}
+
+\subsection{1. Offline-First Architecture with Room Cache}
+
+Unlike cloud-dependent systems (Blynk, Tuya), NexusFlow maintains a local Room database that serves as the source of truth for the UI. This enables:
+
+\begin{itemize}
+    \item Instant UI responsiveness even during network outages
+    \item Command queuing for reliable delivery when connectivity is restored
+    \item Reduced cloud bandwidth consumption
+\end{itemize}
+
+\subsection{2. BLE-Based First-Time Provisioning}
+
+Most systems require cloud connectivity during device pairing. NexusFlow's unique BLE provisioning workflow eliminates cloud dependency for initial setup:
+
+\begin{itemize}
+    \item No internet required to pair devices
+    \item Secure PIN-based verification
+    \item WiFi credentials transferred securely over BLE
+\end{itemize}
+
+\subsection{3. Presence-Based Adaptive Synchronization}
+
+NexusFlow implements intelligent presence detection that adjusts Firebase sync intervals based on app state:
+
+\begin{itemize}
+    \item \textbf{Active:} 1-minute sync when app is in foreground
+    \item \textbf{Idle:} 15-minute sync when app is inactive
+    \item Reduces battery drain and unnecessary cloud traffic
+\end{itemize}
+
+\subsection{4. Per-Relay Runtime Tracking}
+
+The system tracks and accumulates relay operation time for each channel, enabling:
+
+\begin{itemize}
+    \item Energy consumption estimation
+    \item Maintenance alerts based on usage hours
+    \item User insights into device utilization patterns
+\end{itemize}
+
+\subsection{5. Unified Firmware Architecture}
+
+A single firmware codebase supports 4, 6, and 8-channel relay variants through:
+
+\begin{itemize}
+    \item Configuration-driven channel mapping
+    \item Flexible GPIO allocation
+    \item Shared module architecture
+\end{itemize}
+
+\subsection{6. Comprehensive Automation Engine}
+
+The automation system supports:
+
+\begin{itemize}
+    \item Threshold-based rules with hysteresis to prevent oscillation
+    \item Dual-sensor AND/OR logic for complex conditions
+    \item Centralized command funnel for consistent state management
+\end{itemize}
+
+\section{Research Gaps Addressed}
+
+\subsection{Cloud Dependency and Reliability}
+
+\textit{Gap:} Most commercial IoT platforms fail when cloud services are unavailable, leaving users unable to control their homes.
+
+\textit{Solution:} NexusFlow's offline-first architecture with local caching ensures functionality during internet outages.
+
+\subsection{Setup Complexity and Cloud Requirement}
+
+\textit{Gap:} Device provisioning typically requires cloud accounts and internet connectivity, creating barriers to adoption.
+
+\textit{Solution:} BLE-based provisioning allows users to set up devices locally without cloud prerequisites.
+
+\subsection{Privacy and Data Control}
+
+\textit{Gap:} Centralized cloud platforms collect extensive user data with limited transparency or control.
+
+\textit{Solution:} Clear separation between on-device processing (automation, touch control) and cloud sync (for multi-device coordination), giving users explicit control over what data is synchronized.
+
+\subsection{Energy and Cost Awareness}
+
+\textit{Gap:} Basic smart home systems lack built-in mechanisms for tracking energy consumption and operational costs.
+
+\textit{Solution:} Per-device and per-relay runtime tracking provides granular visibility into energy usage.
+
+\subsection{Subscription Model Alternatives}
+
+\textit{Gap:} Many smart home platforms rely on recurring subscriptions, increasing long-term costs.
+
+\textit{Solution:} NexusFlow is subscription-free with no recurring costs beyond the initial hardware investment.
+
+\section{Conclusion}
+
+While existing smart home systems offer valuable features, they often compromise on reliability, privacy, or cost. NexusFlow addresses these gaps by combining offline-first caching, cloud-free provisioning, presence-aware optimization, and comprehensive automation within an open, extensible architecture. The system demonstrates that a feature-rich, production-grade smart home platform can be built affordably while maintaining user control and system reliability.

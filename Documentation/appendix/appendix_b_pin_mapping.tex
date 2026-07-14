@@ -1,0 +1,368 @@
+\section{ESP32 GPIO Pin Configuration and Function Mapping}
+
+Complete reference for all GPIO pins used in NexusFlow hardware variants.
+
+\subsection{Consolidated Pin Mapping Table}
+
+\begin{table}[H]
+\centering
+\caption{Complete ESP32 GPIO Pinout Reference}
+\label{tbl:gpio_reference}
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{GPIO} & \textbf{Function} & \textbf{I/O Type} & \textbf{4-Ch} & \textbf{6-Ch/8-Ch} \\
+\hline
+0 & Mode/Pairing Button & INPUT & ✓ & ✓ \\
+\hline
+4 & Red Status LED & OUTPUT & ✓ & ✓ \\
+\hline
+5 & Relay 3 Control & OUTPUT & ✓ & ✓ \\
+\hline
+12 & Touch Sensor 6 Input & INPUT & ✗ & ✓ \\
+\hline
+13 & Touch Sensor 5 Input & INPUT & ✗ & ✓ \\
+\hline
+14 & Touch Sensor 4 Input & INPUT & ✗ & ✓ \\
+\hline
+15 & Touch Sensor 3 Input & INPUT & ✗ & ✓ \\
+\hline
+16 & Relay 5 Control & OUTPUT & ✗ & ✓ \\
+\hline
+17 & Relay 4 Control & OUTPUT & ✗ & ✓ \\
+\hline
+18 & Relay 2 Control & OUTPUT & ✓ & ✓ \\
+\hline
+19 & Relay 1 Control & OUTPUT & ✓ & ✓ \\
+\hline
+21 & I2C SDA (Sensors) & I2C & ✓ & ✓ \\
+\hline
+22 & I2C SCL (Sensors) & I2C & ✓ & ✓ \\
+\hline
+23 & Green Status LED & OUTPUT & ✓ & ✓ \\
+\hline
+25 & Relay 6 Control & OUTPUT & ✗ & ✓ \\
+\hline
+27 & Mode-Select Slider & ADC INPUT & ✓ & ✓ \\
+\hline
+32 & Touch Sensor 1 Input & INPUT & ✓ & ✓ \\
+\hline
+33 & Touch Sensor 2 Input & INPUT & ✓ & ✓ \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{4-Channel Variant Configuration}
+
+For 4-relay systems (e.g., basic home setup):
+
+\begin{lstlisting}[language=Kotlin, caption=4-Channel GPIO Configuration, label=lst:gpio_4ch]
+object HardwareConfig4Ch {
+    const val RELAY_COUNT = 4
+    const val TOUCH_COUNT = 4
+    
+    val RELAY_PINS = intArrayOf(
+        19, // Relay 1
+        18, // Relay 2
+        5,  // Relay 3
+        17  // Relay 4
+    )
+    
+    val TOUCH_PINS = intArrayOf(
+        32, // Touch 1
+        33, // Touch 2
+        14, // Touch 3
+        15  // Touch 4
+    )
+    
+    const val I2C_SDA = 21
+    const val I2C_SCL = 22
+    const val GREEN_LED = 23
+    const val RED_LED = 4
+    const val MODE_BUTTON = 0
+    const val MODE_SLIDER = 27
+}
+\end{lstlisting}
+
+\subsection{6-Channel Variant Configuration}
+
+For 6-relay systems (typical household):
+
+\begin{lstlisting}[language=Kotlin, caption=6-Channel GPIO Configuration, label=lst:gpio_6ch]
+object HardwareConfig6Ch {
+    const val RELAY_COUNT = 6
+    const val TOUCH_COUNT = 6
+    
+    val RELAY_PINS = intArrayOf(
+        19, // Relay 1
+        18, // Relay 2
+        5,  // Relay 3
+        17, // Relay 4
+        16, // Relay 5
+        25  // Relay 6
+    )
+    
+    val TOUCH_PINS = intArrayOf(
+        32, // Touch 1
+        33, // Touch 2
+        15, // Touch 3
+        14, // Touch 4
+        13, // Touch 5
+        12  // Touch 6
+    )
+    
+    const val I2C_SDA = 21
+    const val I2C_SCL = 22
+    const val GREEN_LED = 23
+    const val RED_LED = 4
+    const val MODE_BUTTON = 0
+    const val MODE_SLIDER = 27
+}
+\end{lstlisting}
+
+\subsection{8-Channel Variant Configuration}
+
+For 8-relay systems (advanced installations):
+
+\begin{lstlisting}[language=Kotlin, caption=8-Channel GPIO Configuration, label=lst:gpio_8ch]
+object HardwareConfig8Ch {
+    const val RELAY_COUNT = 8
+    const val TOUCH_COUNT = 6  // Limited by available pins
+    
+    val RELAY_PINS = intArrayOf(
+        19, // Relay 1
+        18, // Relay 2
+        5,  // Relay 3
+        17, // Relay 4
+        16, // Relay 5
+        25, // Relay 6
+        27, // Relay 7 (shared with mode slider, configurable)
+        2   // Relay 8 (additional GPIO if available)
+    )
+    
+    val TOUCH_PINS = intArrayOf(
+        32, // Touch 1
+        33, // Touch 2
+        15, // Touch 3
+        14, // Touch 4
+        13, // Touch 5
+        12  // Touch 6
+    )
+    
+    const val I2C_SDA = 21
+    const val I2C_SCL = 22
+    const val GREEN_LED = 23
+    const val RED_LED = 4
+    const val MODE_BUTTON = 0
+}
+\end{lstlisting}
+
+\section{Critical GPIO Warnings}
+
+\subsection{Strapping Pins}
+
+\begin{table}[H]
+\centering
+\caption{ESP32 Strapping Pins and Boot Behavior}
+\label{tbl:strapping_pins}
+\begin{tabular}{|c|c|c|l|}
+\hline
+\textbf{GPIO} & \textbf{Strapping Function} & \textbf{Default} & \textbf{Issue} \\
+\hline
+0 & JTAG/Download mode & Pull-up & LOW triggers flash mode \\
+\hline
+2 & Internal VREF (analog) & Pull-down & Not recommended for GPIO \\
+\hline
+5 & SPI FLASH Mode & Pull-up & Interferes with SPI boot \\
+\hline
+12 & SPI FLASH Voltage & Pull-down & HIGH triggers incorrect voltage \\
+\hline
+15 & SDIO Slave (SD card) & Pull-up & LOW enables SD mode \\
+\hline
+\end{tabular}
+\end{table}
+
+\textbf{Implications for NexusFlow:}
+
+\begin{itemize}
+    \item \textbf{GPIO 0:} Used as mode/pairing button. Must include debouncing firmware to prevent accidental boot mode trigger during normal operation.
+    
+    \item \textbf{GPIO 12, 15:} Used for touch inputs in 6/8-channel variants. Small boot sensitivity; firmware debouncing required. If unexpected resets occur, consider PCB redesign with dedicated GPIO or resistive debouncing.
+    
+    \item \textbf{GPIO 5:} Used for Relay 3. SPI FLASH mode strapping; ensure proper pull-up configuration. Generally safe after boot, but avoid holding LOW during power-up.
+\end{itemize}
+
+\subsection{Power Supply Considerations}
+
+\begin{itemize}
+    \item \textbf{3.3V Rail:} Supplies ESP32, TTP223 modules, AHT10 sensor, status LEDs
+    \item \textbf{5V Rail:} Supplies relay module coils only
+    \item \textbf{Ground:} Common ground for all components; use star grounding for noise immunity
+\end{itemize}
+
+\textbf{Current Budget:}
+\begin{itemize}
+    \item ESP32 Core: ~80 mA typical
+    \item 6 Relays (coil, 5V): ~120 mA (20 mA each)
+    \item TTP223 × 6: ~6 mA
+    \item AHT10: ~0.3 mA
+    \item Status LEDs: ~20 mA
+    \item \textbf{Total 3.3V:} ~150 mA
+    \item \textbf{Total 5V:} ~120 mA
+\end{itemize}
+
+A 1A @ 5V USB power supply is sufficient for development. Production systems should use a dedicated power supply rated for 2A @ 5V to accommodate transient relay switching current spikes.
+
+\section{GPIO Electrical Characteristics}
+
+\begin{table}[H]
+\centering
+\caption{ESP32 GPIO Electrical Specifications}
+\label{tbl:gpio_specs}
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Parameter} & \textbf{Min} & \textbf{Max} \\
+\hline
+Output High Voltage (IOH = -1 mA) & 2.4V & 3.3V \\
+\hline
+Output Low Voltage (IOL = 10 mA) & 0V & 0.4V \\
+\hline
+Input High Voltage & 2.0V & 3.3V \\
+\hline
+Input Low Voltage & 0V & 0.8V \\
+\hline
+Output Drive Capability & 12 mA & \text{(per GPIO)} \\
+\hline
+Input Capacitance & 0 pF & 150 pF \\
+\hline
+\end{tabular}
+\end{table}
+
+\textbf{Design Implications:}
+
+\begin{itemize}
+    \item GPIO outputs 3.3V—safe for TTP223 input (rated 3.6V max)
+    \item GPIO outputs drive relay module transistors directly (10–20 mA requirement, GPIO capable of 12 mA)
+    \item 5V relay module outputs must NOT connect to GPIO (overvoltage risk)
+    \item Pull-up/pull-down resistors: 4.7 kΩ recommended for I2C (per I2C spec)
+\end{itemize}
+
+\section{Firmware GPIO Initialization}
+
+\begin{lstlisting}[language=Kotlin, caption=GPIO Initialization Code, label=lst:gpio_init]
+void initializeGPIO() {
+    // Configure relay pins as outputs
+    for (int relay : RELAY_PINS) {
+        pinMode(relay, OUTPUT);
+        digitalWrite(relay, HIGH);  // Relays active-LOW; start inactive
+    }
+    
+    // Configure touch sensor pins as inputs
+    for (int touch : TOUCH_PINS) {
+        pinMode(touch, INPUT);
+    }
+    
+    // Configure I2C pins (handled by I2C library)
+    // Wire.begin(I2C_SDA, I2C_SCL);
+    
+    // Configure status LEDs
+    pinMode(GREEN_LED, OUTPUT);
+    pinMode(RED_LED, OUTPUT);
+    digitalWrite(GREEN_LED, LOW);   // Start off
+    digitalWrite(RED_LED, LOW);     // Start off
+    
+    // Configure mode button
+    pinMode(MODE_BUTTON, INPUT_PULLUP);
+    
+    // Configure mode slider (ADC)
+    pinMode(MODE_SLIDER, INPUT);
+    
+    Serial.println("GPIO initialization complete");
+}
+
+// Helper functions for relay control
+void turnRelayOn(int relayIndex) {
+    if (relayIndex >= 0 && relayIndex < RELAY_COUNT) {
+        digitalWrite(RELAY_PINS[relayIndex], LOW);  // Active-LOW
+    }
+}
+
+void turnRelayOff(int relayIndex) {
+    if (relayIndex >= 0 && relayIndex < RELAY_COUNT) {
+        digitalWrite(RELAY_PINS[relayIndex], HIGH);  // Inactive
+    }
+}
+
+bool isRelayOn(int relayIndex) {
+    if (relayIndex >= 0 && relayIndex < RELAY_COUNT) {
+        return digitalRead(RELAY_PINS[relayIndex]) == LOW;
+    }
+    return false;
+}
+\end{lstlisting}
+
+\section{Troubleshooting GPIO Issues}
+
+\subsection{Relay Not Switching}
+
+\begin{enumerate}
+    \item Verify GPIO pin correct in configuration (matches your hardware variant)
+    \item Check relay module power (5V present on VCC)
+    \item Verify active-LOW logic: \texttt{digitalWrite(pin, LOW)} should energize relay
+    \item Check current limiting: relay module should have built-in transistor driver
+    \item Measure GPIO voltage: should toggle between 0V (ON) and 3.3V (OFF)
+\end{enumerate}
+
+\subsection{Touch Input Not Responding}
+
+\begin{enumerate}
+    \item Verify TTP223 powered from 3.3V (NOT 5V)
+    \item Confirm output pin connected correctly to GPIO
+    \item Check GPIO voltage: should oscillate between 0V and 3.3V when touched
+    \item Test with Serial output: \texttt{Serial.println(digitalRead(touchPin))}
+    \item Verify debouncing delay (TTP223 spec 60 ms)
+\end{enumerate}
+
+\subsection{I2C Sensor Communication Failure}
+
+\begin{enumerate}
+    \item Verify SDA on GPIO 21, SCL on GPIO 22
+    \item Check 4.7 kΩ pull-up resistors present on both lines
+    \item Confirm AHT10 at I2C address 0x38
+    \item Oscilloscope test: verify rising/falling edges clean (not rounded)
+    \item Try reducing I2C clock speed if using longer wires (e.g., 100 kHz instead of 400 kHz)
+\end{enumerate}
+
+\subsection{Unexpected Resets or Boot Failures}
+
+\begin{enumerate}
+    \item Check strapping pin state (GPIO 0, 12, 15) during power-up
+    \item Add debouncing on GPIO 0 (mode button) to prevent accidental flash mode
+    \item Verify adequate power supply (1A @ 5V minimum for 6 relays)
+    \item Check USB cable quality—flaky cables cause brownouts
+    \item Monitor serial output during boot: watch for error messages
+    \item If GPIO 12 or 15 issues persist, consider redesign to use alternative pins
+\end{enumerate}
+
+\section{GPIO Pin Assignment Rationale}
+
+\subsection{Why These Pins?}
+
+\begin{itemize}
+    \item \textbf{Relays (19, 18, 5, 17, 16, 25):} Contiguous logic outputs; easy to manage in arrays
+    \item \textbf{Touch (32, 33, 14, 13, 12, 15):} Separate from relay pins; avoids cross-talk
+    \item \textbf{I2C (21, 22):} Dedicated I2C pins on ESP32; avoid potential conflicts
+    \item \textbf{Status LEDs (23, 4):} Unused pins; easily accessible for debugging
+    \item \textbf{Mode Button (0):} Special function but acceptable with firmware debouncing
+\end{itemize}
+
+\subsection{Alternative Pin Assignments}
+
+If conflicts arise with other modules:
+
+\begin{itemize}
+    \item \textbf{Additional Relays:} GPIO 2, 26, 27 available (but check prior use)
+    \item \textbf{Additional Sensors:} SPI pins 23, 18, 19, 5 available if SPI not used
+    \item \textbf{ADC inputs:} GPIO 34, 35, 36, 39 dedicated analog inputs (no output capability)
+\end{itemize}
+
+This appendix serves as definitive GPIO reference during hardware assembly, firmware development, and troubleshooting phases.
